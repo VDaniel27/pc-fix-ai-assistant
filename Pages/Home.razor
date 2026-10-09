@@ -1,0 +1,89 @@
+@page "/"
+@using PC_Fix_AI_Assistant.Models
+
+<PageTitle>PC-Fix AI Assistant</PageTitle>
+
+<div class="hero">
+    <div class="hero-content">
+        <h1>🔧 PC-Fix AI Assistant</h1>
+        <p>Guías de mantenimiento para PCs y laptops — para cualquier nivel de conocimiento</p>
+        <div class="search-bar">
+            <input class="form-control form-control-lg" placeholder="Buscar por marca, modelo, motherboard, laptop..." 
+                   @bind="searchQuery" @bind:event="oninput" />
+            <span class="search-icon">🔍</span>
+        </div>
+        <div class="filter-chips">
+            @foreach (var cat in categories)
+            {
+                <button class="chip @(activeCategory == cat ? "chip-active" : "")" @onclick="() => SetCategory(cat)">@cat</button>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="guides-grid">
+    @foreach (var guide in FilteredGuides)
+    {
+        <div class="guide-card">
+            <div class="guide-icon">@guide.Icon</div>
+            <div class="guide-body">
+                <span class="guide-badge">@guide.Category</span>
+                <h5>@guide.Title</h5>
+                <p>@guide.Description</p>
+                <div class="guide-tags">
+                    @foreach (var tag in guide.Tags)
+                    {
+                        <span class="tag">@tag</span>
+                    }
+                </div>
+                <div class="guide-meta">
+                    <span class="difficulty @guide.Difficulty.ToLower()">@guide.Difficulty</span>
+                    <span class="duration">⏱ @guide.Duration</span>
+                </div>
+            </div>
+        </div>
+    }
+    @if (!FilteredGuides.Any())
+    {
+        <div class="no-results">
+            <p>😕 No se encontraron guías para "<strong>@searchQuery</strong>"</p>
+            <button class="btn btn-outline-primary" @onclick="ClearSearch">Limpiar búsqueda</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string searchQuery = "";
+    private string activeCategory = "Todos";
+    private readonly string[] categories = ["Todos", "Motherboard", "Laptop", "RAM", "Almacenamiento", "Refrigeración", "GPU"];
+
+    private IEnumerable<Guide> FilteredGuides => AllGuides
+        .Where(g => activeCategory == "Todos" || g.Category == activeCategory)
+        .Where(g => string.IsNullOrWhiteSpace(searchQuery) ||
+            g.Title.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+            g.Description.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+            g.Tags.Any(t => t.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)));
+
+    private void SetCategory(string cat) => activeCategory = cat;
+    private void ClearSearch() { searchQuery = ""; activeCategory = "Todos"; }
+
+    private static readonly List<Guide> AllGuides =
+    [
+        new("💾", "Motherboard", "Limpieza de motherboard ASUS ROG", "Guía paso a paso para limpiar y mantener tu placa madre ASUS ROG sin dañar componentes.", ["ASUS", "ROG", "Motherboard", "Limpieza"], "Intermedio", "30 min"),
+        new("💾", "Motherboard", "Actualizar BIOS en MSI", "Cómo actualizar el BIOS de placas MSI de forma segura usando M-Flash.", ["MSI", "BIOS", "Actualización", "Motherboard"], "Avanzado", "20 min"),
+        new("💾", "Motherboard", "Diagnóstico de motherboard Gigabyte", "Identifica fallas comunes en placas Gigabyte con los códigos de error LED.", ["Gigabyte", "Diagnóstico", "LED", "Motherboard"], "Intermedio", "15 min"),
+        new("💻", "Laptop", "Limpieza interna Dell Inspiron", "Desmontaje y limpieza completa de ventiladores y disipadores en Dell Inspiron.", ["Dell", "Inspiron", "Limpieza", "Ventilador"], "Básico", "45 min"),
+        new("💻", "Laptop", "Cambio de pasta térmica HP Pavilion", "Reemplaza la pasta térmica de tu HP Pavilion para reducir temperaturas.", ["HP", "Pavilion", "Pasta térmica", "Temperatura"], "Básico", "40 min"),
+        new("💻", "Laptop", "Upgrade de RAM en Lenovo ThinkPad", "Amplía la memoria RAM de tu ThinkPad de forma sencilla.", ["Lenovo", "ThinkPad", "RAM", "Upgrade"], "Básico", "20 min"),
+        new("💻", "Laptop", "Reemplazo de batería MacBook Pro", "Guía segura para cambiar la batería de MacBook Pro modelos 2015-2019.", ["Apple", "MacBook", "Batería", "Reemplazo"], "Avanzado", "60 min"),
+        new("💻", "Laptop", "Limpieza Acer Aspire", "Mantenimiento preventivo completo para laptops Acer Aspire.", ["Acer", "Aspire", "Limpieza", "Mantenimiento"], "Básico", "35 min"),
+        new("🧠", "RAM", "Instalar RAM en PC de escritorio", "Cómo instalar o ampliar la memoria RAM en cualquier PC de escritorio.", ["RAM", "DDR4", "DDR5", "Instalación"], "Básico", "10 min"),
+        new("🧠", "RAM", "Diagnosticar RAM con MemTest86", "Detecta errores de memoria con MemTest86 antes de que causen problemas.", ["RAM", "MemTest86", "Diagnóstico", "Errores"], "Intermedio", "90 min"),
+        new("💿", "Almacenamiento", "Migrar HDD a SSD sin reinstalar Windows", "Clona tu disco duro a un SSD y mejora el rendimiento sin perder datos.", ["SSD", "HDD", "Migración", "Clonación"], "Intermedio", "60 min"),
+        new("💿", "Almacenamiento", "Instalar SSD NVMe M.2", "Guía para instalar un SSD NVMe en el slot M.2 de tu motherboard.", ["NVMe", "M.2", "SSD", "Instalación"], "Básico", "15 min"),
+        new("❄️", "Refrigeración", "Cambio de pasta térmica en CPU", "Aplica pasta térmica correctamente para mantener temperaturas óptimas.", ["CPU", "Pasta térmica", "Temperatura", "Refrigeración"], "Básico", "20 min"),
+        new("❄️", "Refrigeración", "Instalar cooler de CPU aftermarket", "Reemplaza el cooler stock por uno de mayor rendimiento.", ["Cooler", "CPU", "Noctua", "be quiet!"], "Intermedio", "30 min"),
+        new("🎮", "GPU", "Limpieza de tarjeta gráfica NVIDIA", "Limpia los ventiladores y reemplaza la pasta térmica de tu GPU NVIDIA.", ["NVIDIA", "GPU", "RTX", "Limpieza"], "Intermedio", "45 min"),
+        new("🎮", "GPU", "Diagnóstico de fallas en GPU AMD", "Identifica y soluciona problemas comunes en tarjetas AMD Radeon.", ["AMD", "Radeon", "GPU", "Diagnóstico"], "Avanzado", "30 min"),
+    ];
+}

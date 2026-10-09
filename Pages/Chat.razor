@@ -1,0 +1,154 @@
+@inject GeminiService Gemini
+@inject IJSRuntime JS
+
+<!-- Botón flotante -->
+<button class="chat-fab @(isOpen ? "fab-open" : "")" @onclick="ToggleChat" title="Asistente IA">
+    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" class="gemini-logo">
+        <path d="M24 4C24 4 14 16 14 24C14 32 24 44 24 44C24 44 34 32 34 24C34 16 24 4 24 4Z" fill="#4285F4"/>
+        <path d="M4 24C4 24 16 14 24 14C32 14 44 24 44 24C44 24 32 34 24 34C16 34 4 24 4 24Z" fill="#34A853"/>
+        <ellipse cx="24" cy="24" rx="5" ry="5" fill="white" opacity="0.9"/>
+    </svg>
+</button>
+
+<!-- Panel del chat -->
+@if (isOpen)
+{
+    <div class="chat-panel">
+        <div class="chat-panel-header">
+            <div class="chat-panel-title">
+                <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" class="gemini-logo-sm">
+                    <path d="M24 4C24 4 14 16 14 24C14 32 24 44 24 44C24 44 34 32 34 24C34 16 24 4 24 4Z" fill="#4285F4"/>
+                    <path d="M4 24C4 24 16 14 24 14C32 14 44 24 44 24C44 24 32 34 24 34C16 34 4 24 4 24Z" fill="#34A853"/>
+                    <ellipse cx="24" cy="24" rx="5" ry="5" fill="white" opacity="0.9"/>
+                </svg>
+                <div>
+                    <span>Asistente PC-Fix</span>
+                    <small>Powered by Gemini</small>
+                </div>
+            </div>
+            <button class="chat-close" @onclick="ToggleChat">✕</button>
+        </div>
+
+        <div class="chat-messages-dark" id="chat-messages">
+            @if (!messages.Any())
+            {
+                <div class="chat-welcome-dark">
+                    <p>👋 ¡Hola! Pregúntame sobre fallas, componentes o mantenimiento de tu PC o laptop.</p>
+                    <div class="suggestions-dark">
+                        @foreach (var s in suggestions)
+                        {
+                            <button class="suggestion-dark" @onclick="() => UseSuggestion(s)">@s</button>
+                        }
+                    </div>
+                </div>
+            }
+            @foreach (var msg in messages)
+            {
+                <div class="msg @msg.Role">
+                    <div class="msg-bubble">
+                        @if (msg.ImageBase64 != null)
+                        {
+                            <img src="data:@msg.ImageMediaType;base64,@msg.ImageBase64" class="msg-image" alt="imagen" />
+                        }
+                        <span style="white-space:pre-wrap">@msg.Content</span>
+                    </div>
+                </div>
+            }
+            @if (isLoading)
+            {
+                <div class="msg assistant">
+                    <div class="msg-bubble typing-dark">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            }
+            @if (errorMsg != null)
+            {
+                <div class="chat-error-dark">⚠️ @errorMsg</div>
+            }
+        </div>
+
+        <div class="chat-input-dark">
+            @if (pendingImage != null)
+            {
+                <div class="image-preview-dark">
+                    <img src="data:@pendingImageType;base64,@pendingImage" alt="preview" />
+                    <button @onclick="RemoveImage">✕</button>
+                </div>
+            }
+            <div class="input-row-dark">
+                <label class="attach-dark" title="Adjuntar imagen">
+                    📎
+                    <InputFile OnChange="OnImageSelected" accept="image/*" style="display:none" />
+                </label>
+                <textarea class="textarea-dark" rows="1" placeholder="Escribe tu pregunta..."
+                          @bind="userInput" @onkeydown="OnEnterKey"></textarea>
+                <button class="send-dark" @onclick="SendMessage" disabled="@(isLoading || string.IsNullOrWhiteSpace(userInput))">
+                    ➤
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isOpen = false;
+    private string userInput = "";
+    private bool isLoading = false;
+    private string? errorMsg;
+    private string? pendingImage;
+    private string? pendingImageType;
+    private List<ChatMessage> messages = [];
+
+    private readonly string[] suggestions =
+    [
+        "Mi PC no enciende ¿qué reviso?",
+        "¿Cómo sé si mi CPU sobrecalienta?",
+        "Mi laptop hace ruido raro",
+        "¿Cómo aplico pasta térmica?",
+        "¿Cada cuánto limpiar mi PC?"
+    ];
+
+    private void ToggleChat() => isOpen = !isOpen;
+    private void UseSuggestion(string text) => userInput = text;
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 5 * 1024 * 1024) { errorMsg = "La imagen no debe superar 5 MB."; return; }
+        pendingImageType = file.ContentType;
+        using var stream = file.OpenReadStream(5 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        pendingImage = Convert.ToBase64String(ms.ToArray());
+        errorMsg = null;
+    }
+
+    private void RemoveImage() { pendingImage = null; pendingImageType = null; }
+
+    private async Task OnEnterKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) await SendMessage();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput) || isLoading) return;
+        errorMsg = null;
+        messages.Add(new ChatMessage { Role = "user", Content = userInput.Trim(), ImageBase64 = pendingImage, ImageMediaType = pendingImageType });
+        userInput = "";
+        RemoveImage();
+        isLoading = true;
+        await ScrollToBottom();
+        try
+        {
+            var reply = await Gemini.SendMessageAsync(messages);
+            messages.Add(new ChatMessage { Role = "assistant", Content = reply });
+        }
+        catch (Exception ex) { errorMsg = ex.Message; }
+        finally { isLoading = false; await ScrollToBottom(); }
+    }
+
+    private async Task ScrollToBottom() =>
+        await JS.InvokeVoidAsync("eval", "document.getElementById('chat-messages')?.scrollTo({top:99999,behavior:'smooth'})");
+}
