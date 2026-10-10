@@ -13,3 +13,7 @@ An interactive web platform designed to help users perform basic and advanced ma
 ## 🚀 Tech Stack
 * **Frontend:** [HTML / CSS / JavaScript / Blazor / React — *tu tecnología*]
 * **API Communication:** REST / HTTP Client
+
+* ## 🔗 Backend Repository
+This project requires the backend proxy server to connect with Google Gemini API:
+👉 **[PC Maintenance Gemini Server](https://github.com/tu-usuario/nombre-repo-backend)**
